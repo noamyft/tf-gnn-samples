@@ -71,6 +71,8 @@ def _load_single_sample(raw_sample: Dict[str, Any],
                         graph_node_label_max_num_chars: int,
                         max_variable_candidates: int = 5,
                         add_self_loop_edges: bool = False):
+    # TODO: nomecode: print filename label
+    print("filename:", raw_sample["filename"])
     _add_per_subtoken_nodes(unsplittable_node_names, raw_sample['ContextGraph'])
     num_nodes = len(raw_sample['ContextGraph']['NodeLabels'])
 
@@ -79,6 +81,7 @@ def _load_single_sample(raw_sample: Dict[str, Any],
     for (node, label) in raw_sample['ContextGraph']['NodeLabels'].items():
         for (char_idx, label_char) in enumerate(label[:graph_node_label_max_num_chars].lower()):
             node_label_chars[int(node), char_idx] = ALPHABET_DICT.get(label_char, 1)
+    # TODO: node_label_chars_unique - kinda "vocab". need to convert int to cahr and merge them
     node_label_chars_unique, node_label_chars_indices = np.unique(node_label_chars,
                                                                   axis=0,
                                                                   return_inverse=True)
@@ -116,6 +119,8 @@ def _load_single_sample(raw_sample: Dict[str, Any],
     distractor_candidate_ids = []  # type: List[int]
     for candidate in raw_sample['SymbolCandidates']:
         if candidate['IsCorrect']:
+            # TODO: nomecode: print true label
+            print("true label: ", candidate["SymbolName"])
             correct_candidate_id = candidate['SymbolDummyNode']
         else:
             distractor_candidate_ids.append(candidate['SymbolDummyNode'])
@@ -125,6 +130,8 @@ def _load_single_sample(raw_sample: Dict[str, Any],
     num_scope_padding = max_variable_candidates - len(candidate_node_ids)
     candidate_node_ids_mask = [True] * len(candidate_node_ids) + [False] * num_scope_padding
     candidate_node_ids = candidate_node_ids + [0] * num_scope_padding
+
+
 
     return GraphSample(adjacency_lists=adjacency_lists,
                        type_to_node_to_num_incoming_edges=num_incoming_edges_per_type,
@@ -159,7 +166,7 @@ def _data_loading_worker(path_queue: Queue,
                                                  add_self_loop_edges,
                                                  ))
 
-
+# todo: load_data func
 def _load_data(paths: List[RichPath],
                unsplittable_node_names: Set[str],
                graph_node_label_max_num_chars: int,
@@ -233,6 +240,15 @@ class VarMisuse_Task(Sparse_Graph_Task):
     def default_data_path() -> str:
         return "data/varmisuse"
 
+    # todo: add get dict
+    @staticmethod
+    def alphabet_to_index(c):
+        return ALPHABET_DICT[c]
+
+    @staticmethod
+    def index_to_alphabet(i):
+        return {i:c for c, i in ALPHABET_DICT.items()}[i]
+
     def __init__(self, params: Dict[str, Any]):
         super().__init__(params)
 
@@ -282,11 +298,18 @@ class VarMisuse_Task(Sparse_Graph_Task):
         print(" Loading VarMisuse data from %s [%i data files]." % (data_dir, len(all_data_files)))
 
         unsplittable_keywords = get_language_keywords('csharp')
+        # todo: _load_data parallel flag
         return _load_data(all_data_files,
                           unsplittable_keywords,
                           self.params['graph_node_label_max_num_chars'],
                           self.params['max_variable_candidates'],
-                          self.params['add_self_loop_edges'])
+                          self.params['add_self_loop_edges'], False)
+        # return _load_data(all_data_files,
+        #                   unsplittable_keywords,
+        #                   self.params['graph_node_label_max_num_chars'],
+        #                   self.params['max_variable_candidates'],
+        #                   self.params['add_self_loop_edges'])
+
 
     # -------------------- Model Construction --------------------
     def make_task_input_model(self,
@@ -334,7 +357,9 @@ class VarMisuse_Task(Sparse_Graph_Task):
         # U ~ num unique labels
         # C ~ num characters (self.params['graph_node_label_max_num_chars'])
         # A ~ num characters in alphabet
-        unique_label_chars_one_hot = tf.one_hot(indices=unique_labels_as_characters,
+        # TODO: noamcode: add label_one_hot input as a field
+        self.unique_label_chars_one_hot = \
+            unique_label_chars_one_hot = tf.one_hot(indices=unique_labels_as_characters,
                                                 depth=len(ALPHABET),
                                                 axis=-1)  # Shape: [U, C, A]
 
@@ -358,6 +383,9 @@ class VarMisuse_Task(Sparse_Graph_Task):
                                    activation=tf.nn.leaky_relu,
                                    )(char_pool_l1)                # Shape: [U, 1, D]
         unique_label_representations = tf.squeeze(char_conv_l2, axis=1)  # Shape: [U, D]
+        # TODO: maybe gradient to this: tf.gather
+        # multiply by: unique_label_representations
+        # and replace the desired var in node_labels_to_unique_labels (on true data)
         node_label_representations = tf.gather(params=unique_label_representations,
                                                indices=node_labels_to_unique_labels)
         return node_label_representations
@@ -443,6 +471,11 @@ class VarMisuse_Task(Sparse_Graph_Task):
             'num_correct_predictions': tf.reduce_sum(tf.cast(prediction_is_correct, tf.int32)),
         }
 
+        # TODO: noamcode: add gradients computation
+        self.unique_labels_input_grads = tf.gradients(model_ops['task_metrics']['total_loss'],
+                                                      self.unique_label_chars_one_hot,
+                                                      name="gradients_wrt_unique_labels")
+
     # -------------------- Minibatching and training loop --------------------
     def make_minibatch_iterator(self,
                                 data: Iterable[Any],
@@ -502,12 +535,17 @@ class VarMisuse_Task(Sparse_Graph_Task):
 
         try:
             cur_batch_data = init_raw_batch_data_holder()
+            # todo: declare var: finalize flag
+            to_finalize=False
             while True:
                 cur_graph = next(data_iter)
+                # Todo: here is where the batches are created - change to 1 graph per batch
                 # We pack until we cannot fit more graphs in the batch, yield, and continue:
-                if cur_batch_data['node_offset'] + len(cur_graph.node_labels_to_unique_labels) >= max_nodes_per_batch:
+                # if cur_batch_data['node_offset'] + len(cur_graph.node_labels_to_unique_labels) >= max_nodes_per_batch:
+                if to_finalize:
                     yield finalise_batch_data(cur_batch_data)
                     cur_batch_data = init_raw_batch_data_holder()
+                    to_finalize = False
 
                 # Graph structure:
                 for i in range(self.num_edge_types):
@@ -528,6 +566,7 @@ class VarMisuse_Task(Sparse_Graph_Task):
                 # Finally, update the offset we use to shift things during batch construction:
                 cur_batch_data['num_graphs'] += 1
                 cur_batch_data['node_offset'] += len(cur_graph.node_labels_to_unique_labels)
+                to_finalize = True
         except StopIteration:
             # Final batch, yield only if non-empty:
             if cur_batch_data['num_graphs'] > 0:
