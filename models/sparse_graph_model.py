@@ -267,13 +267,17 @@ class Sparse_Graph_Model(ABC):
                     quiet: Optional[bool] = False,
                     summary_writer: Optional[tf.summary.FileWriter] = None) \
             -> Tuple[float, List[Dict[str, Any]], int, float, float, float]:
+        # TODO: noamcode: test loop - make iterator
         batch_iterator = self.task.make_minibatch_iterator(
             data, data_fold, self.__placeholders, self.params['max_nodes_in_batch'])
+
         batch_iterator = ThreadedIterator(batch_iterator, max_queue_size=5)
         task_metric_results = []
         start_time = time.time()
         processed_graphs, processed_nodes, processed_edges = 0, 0, 0
         epoch_loss = 0.0
+        correct_predictions = 0
+        adversarial_predictions = 0
         for step, batch_data in enumerate(batch_iterator):
             if data_fold == DataFold.TRAIN:
                 batch_data.feed_dict[self.__placeholders['graph_layer_input_dropout_keep_prob']] = \
@@ -294,12 +298,90 @@ class Sparse_Graph_Model(ABC):
             epoch_loss += fetch_results['task_metrics']['loss'] * batch_data.num_graphs
             task_metric_results.append(fetch_results['task_metrics'])
 
+
+
             if not quiet:
                 print("Running %s, batch %i (has %i graphs). Loss so far: %.4f"
                       % (epoch_name, step, batch_data.num_graphs, epoch_loss / processed_graphs),
                       end='\r')
             if summary_writer:
                 summary_writer.add_summary(fetch_results['tf_summaries'], fetch_results['total_num_graphs'])
+
+            # todo: noamcode: adversarial process
+            correct = fetch_results["task_metrics"]["num_correct_predictions"] == 1
+            if correct:
+                correct_predictions += 1
+            else:
+                continue
+
+            # adversarial steps
+            START_ADVERSARY_ALPHABET = 2
+            END_ADVERSARY_ALPHABET = 28
+            TARGET_CANDIDATE_ID_TO_ADVERSE = 0 # 0 is the correct one
+            TARGETED_ATTACK = False
+            SELECTED_CANDIDATE_ID_TARGETED_ATTACK = 1 # 0 is the correct one
+
+            # fetch relevant data from batch
+            unique_labels_as_characters = \
+                batch_data.feed_dict[self.__placeholders['unique_labels_as_characters']]
+            node_labels_to_unique_labels = \
+                batch_data.feed_dict[self.__placeholders['node_labels_to_unique_labels']]
+            candidate_node_ids = batch_data.feed_dict[self.__placeholders['candidate_node_ids']]
+
+            node_to_adverse_id = candidate_node_ids[0][TARGET_CANDIDATE_ID_TO_ADVERSE]
+            unique_label_to_adverse_id = node_labels_to_unique_labels[node_to_adverse_id]
+            unique_label_to_adverse = unique_labels_as_characters[unique_label_to_adverse_id]
+            unique_label_to_adverse_length = np.argmax(unique_label_to_adverse==0)
+
+            old_label = "".join([self.task.index_to_alphabet(i) for i in unique_label_to_adverse])
+
+
+            if TARGETED_ATTACK:
+                # replace between true label and adversarial label
+                true_target_node = candidate_node_ids[0][0]
+                candidate_node_ids[0][0] = candidate_node_ids[0][SELECTED_CANDIDATE_ID_TARGETED_ATTACK]
+                candidate_node_ids[0][SELECTED_CANDIDATE_ID_TARGETED_ATTACK] = true_target_node
+
+            # grads computation
+            grads = self.sess.run(self.task.unique_labels_input_grads, feed_dict=batch_data.feed_dict)
+            grads = grads[0] if not TARGETED_ATTACK else -grads[0]
+
+
+
+            unique_label_to_adverse_grads = grads[unique_label_to_adverse_id, :, START_ADVERSARY_ALPHABET:END_ADVERSARY_ALPHABET]
+            # OPTION: replace with constant value
+            # unique_label_to_adverse[0] = 5
+
+            # OPTION: replace constant amount of chars with argmax
+            # target_char = np.argmax(unique_label_to_adverse_grads[0]) + START_ADVERSARY_ALPHABET
+            # target_char1 = np.argmax(unique_label_to_adverse_grads[1]) + START_ADVERSARY_ALPHABET
+            # unique_label_to_adverse[0] = target_char
+            # unique_label_to_adverse[1] = target_char1
+
+            # OPTION: replace argmax id with argmax char
+            target_index = np.argmax(np.max(unique_label_to_adverse_grads, axis=1))
+            target_char = np.argmax(unique_label_to_adverse_grads[target_index]) + START_ADVERSARY_ALPHABET
+            unique_label_to_adverse[target_index] = target_char
+
+            for i in range(unique_label_to_adverse_length, target_index):
+                unique_label_to_adverse[i] = np.argmax(unique_label_to_adverse_grads[i]) + START_ADVERSARY_ALPHABET
+
+            # OPTION: replace all chars with argmax char
+            # for i in range(unique_label_to_adverse_length):
+            #     unique_label_to_adverse[i] = np.argmax(unique_label_to_adverse_grads[i]) + START_ADVERSARY_ALPHABET
+
+            new_label = "".join([self.task.index_to_alphabet(i) for i in unique_label_to_adverse])
+
+            fetch_results = self.sess.run(fetch_dict, feed_dict=batch_data.feed_dict)
+
+            # print("{} -> {}".format(old_label, new_label))
+            if (not TARGETED_ATTACK and fetch_results["task_metrics"]["num_correct_predictions"] == 0)\
+                    or (TARGETED_ATTACK and fetch_results["task_metrics"]["num_correct_predictions"] == 1):
+                adversarial_predictions += 1
+                # print("{} -> {}".format(old_label, new_label))
+                # print("after:", fetch_results["task_metrics"]["num_correct_predictions"])
+
+
 
         assert processed_graphs > 0, "Can't run epoch over empty dataset."
 
@@ -308,6 +390,10 @@ class Sparse_Graph_Model(ABC):
         graphs_per_sec = processed_graphs / epoch_time
         nodes_per_sec = processed_nodes / epoch_time
         edges_per_sec = processed_edges / epoch_time
+
+        print("correct:{} adversarial:{} ({})".format(correct_predictions,
+                                                      adversarial_predictions,
+                                                      adversarial_predictions/correct_predictions) )
         return per_graph_loss, task_metric_results, processed_graphs, graphs_per_sec, nodes_per_sec, edges_per_sec
 
     def log_line(self, msg):
