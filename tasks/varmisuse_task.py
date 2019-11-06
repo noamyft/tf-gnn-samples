@@ -26,7 +26,7 @@ __PROGRAM_GRAPH_EDGES_TYPES_WITH_BKWD = \
                                    for edge_type_name in __PROGRAM_GRAPH_EDGES_TYPES]
 PROGRAM_GRAPH_EDGES_TYPES_VOCAB = {edge_type_name: idx
                                    for idx, edge_type_name in enumerate(__PROGRAM_GRAPH_EDGES_TYPES_WITH_BKWD)}
-
+PROGRAM_GRAPH_EDGES_TYPES_VOCAB[SELF_LOOP_EDGE_NAME] = len(PROGRAM_GRAPH_EDGES_TYPES_VOCAB)
 
 class GraphSample(NamedTuple):
     adjacency_lists: List[np.ndarray]
