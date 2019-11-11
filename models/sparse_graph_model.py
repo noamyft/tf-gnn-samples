@@ -275,6 +275,7 @@ class Sparse_Graph_Model(ABC):
         START_ADVERSARY_ALPHABET = 2
         END_ADVERSARY_ALPHABET = 28
         TARGETED_ATTACK = False
+        logfile = open("example_log.txt", "w")
 
         # TODO: noamcode: test loop - make iterator
         batch_iterator = self.task.make_minibatch_iterator(
@@ -397,15 +398,19 @@ class Sparse_Graph_Model(ABC):
                 if (not TARGETED_ATTACK and fetch_results["task_metrics"]["num_correct_predictions"] == 0)\
                         or (TARGETED_ATTACK and fetch_results["task_metrics"]["num_correct_predictions"] == 1):
                     adversarial_predictions += 1
-                    print("filename:", batch_data.debug_data["filename"][0])
-                    print("slot_token_idx:", batch_data.debug_data["slot_token_idx"][0])
+                    print("filename: {}".format(batch_data.debug_data["filename"][0]))
+                    print("slot_token_idx: {}".format(batch_data.debug_data["slot_token_idx"][0]))
                     print("{} -> {}".format(old_label, new_label))
+                    logfile.write("filename: {}\n".format(batch_data.debug_data["filename"][0]))
+                    logfile.write("slot_token_idx: {}\n".format(batch_data.debug_data["slot_token_idx"][0]))
+                    logfile.write("{} -> {}\n".format(old_label, new_label))
                     # print("after:", fetch_results["task_metrics"]["num_correct_predictions"])
                     break
 
 
 
         assert processed_graphs > 0, "Can't run epoch over empty dataset."
+        logfile.close()
 
         epoch_time = time.time() - start_time
         per_graph_loss = epoch_loss / processed_graphs
