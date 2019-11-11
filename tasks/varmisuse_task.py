@@ -8,7 +8,7 @@ import numpy as np
 from dpu_utils.utils import RichPath
 from dpu_utils.codeutils import split_identifier_into_parts, get_language_keywords
 
-from .sparse_graph_task import Sparse_Graph_Task, DataFold, MinibatchData
+from .sparse_graph_task import Sparse_Graph_Task, DataFold, MinibatchData, MinibatchAdversarialData
 from utils import BIG_NUMBER
 
 
@@ -36,6 +36,10 @@ class GraphSample(NamedTuple):
     slot_node_id: int
     variable_candidate_nodes: np.ndarray
     variable_candidate_nodes_mask: np.ndarray
+    # todo: add fields
+    node_labels: np.ndarray
+    filename: str
+    slot_token_idx: int
 
 
 def _add_per_subtoken_nodes(unsplittable_node_names: Set[str], graph_dict: Dict[str, Any]) -> None:
@@ -72,7 +76,7 @@ def _load_single_sample(raw_sample: Dict[str, Any],
                         max_variable_candidates: int = 5,
                         add_self_loop_edges: bool = False):
     # TODO: nomecode: print filename label
-    print("filename:", raw_sample["filename"])
+    # print("filename:", raw_sample["filename"])
     _add_per_subtoken_nodes(unsplittable_node_names, raw_sample['ContextGraph'])
     num_nodes = len(raw_sample['ContextGraph']['NodeLabels'])
 
@@ -120,7 +124,7 @@ def _load_single_sample(raw_sample: Dict[str, Any],
     for candidate in raw_sample['SymbolCandidates']:
         if candidate['IsCorrect']:
             # TODO: nomecode: print true label
-            print("true label: ", candidate["SymbolName"])
+            # print("true label: ", candidate["SymbolName"])
             correct_candidate_id = candidate['SymbolDummyNode']
         else:
             distractor_candidate_ids.append(candidate['SymbolDummyNode'])
@@ -132,7 +136,7 @@ def _load_single_sample(raw_sample: Dict[str, Any],
     candidate_node_ids = candidate_node_ids + [0] * num_scope_padding
 
 
-
+    # todo: noamcode: add fields
     return GraphSample(adjacency_lists=adjacency_lists,
                        type_to_node_to_num_incoming_edges=num_incoming_edges_per_type,
                        unique_labels_as_characters=node_label_chars_unique,
@@ -140,6 +144,9 @@ def _load_single_sample(raw_sample: Dict[str, Any],
                        slot_node_id=raw_sample['SlotDummyNode'],
                        variable_candidate_nodes=np.array(candidate_node_ids),
                        variable_candidate_nodes_mask=np.array(candidate_node_ids_mask),
+                       filename=raw_sample["filename"],
+                       slot_token_idx=raw_sample["slotTokenIdx"],
+                       node_labels=raw_sample['ContextGraph']['NodeLabels']
                        )
 
 
@@ -503,6 +510,10 @@ class VarMisuse_Task(Sparse_Graph_Task):
                 'num_graphs': 0,
                 'node_offset': 0,
                 'unique_label_offset': 0,
+                # todo: add keys
+                'node_labels': [],
+                'filename': [],
+                'slot_token_idx': [],
             }
 
         def finalise_batch_data(raw_batch_data: Dict[str, Any]) -> MinibatchData:
@@ -528,10 +539,18 @@ class VarMisuse_Task(Sparse_Graph_Task):
                 num_edges += adj_list.shape[0]
                 batch_feed_dict[model_placeholders['adjacency_lists'][i]] = adj_list
 
-            return MinibatchData(feed_dict=batch_feed_dict,
+            # todo: noamcode: replace with MinibatchAdversarialData
+            # return MinibatchData(feed_dict=batch_feed_dict,
+            #                      num_graphs=raw_batch_data['num_graphs'],
+            #                      num_nodes=raw_batch_data['node_offset'],
+            #                      num_edges=num_edges)
+            return MinibatchAdversarialData(feed_dict=batch_feed_dict,
                                  num_graphs=raw_batch_data['num_graphs'],
                                  num_nodes=raw_batch_data['node_offset'],
-                                 num_edges=num_edges)
+                                 num_edges=num_edges,
+                                 debug_data={'node_labels': raw_batch_data['node_labels'],
+                                             'filename': raw_batch_data['filename'],
+                                             'slot_token_idx': raw_batch_data['slot_token_idx'],})
 
         try:
             cur_batch_data = init_raw_batch_data_holder()
@@ -566,6 +585,11 @@ class VarMisuse_Task(Sparse_Graph_Task):
                 # Finally, update the offset we use to shift things during batch construction:
                 cur_batch_data['num_graphs'] += 1
                 cur_batch_data['node_offset'] += len(cur_graph.node_labels_to_unique_labels)
+
+                # todo: noamcode: add debug data to batch
+                cur_batch_data['filename'].append(cur_graph.filename)
+                cur_batch_data['slot_token_idx'].append(cur_graph.slot_token_idx)
+                cur_batch_data['node_labels'].append(cur_graph.node_labels)
                 to_finalize = True
         except StopIteration:
             # Final batch, yield only if non-empty:

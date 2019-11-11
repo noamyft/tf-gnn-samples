@@ -3,6 +3,8 @@ import pickle
 import random
 import time
 from abc import ABC, abstractmethod
+
+from dpu_utils.codeutils import get_language_keywords
 from typing import Any, Dict, Optional, Tuple, List, Iterable
 
 import tensorflow as tf
@@ -12,6 +14,7 @@ from dpu_utils.utils import ThreadedIterator, RichPath
 from tasks import Sparse_Graph_Task, DataFold
 from utils import get_activation
 
+import adversarial
 
 class Sparse_Graph_Model(ABC):
     """
@@ -267,6 +270,12 @@ class Sparse_Graph_Model(ABC):
                     quiet: Optional[bool] = False,
                     summary_writer: Optional[tf.summary.FileWriter] = None) \
             -> Tuple[float, List[Dict[str, Any]], int, float, float, float]:
+        # todo: get reserved words
+        unsplittable_keywords = get_language_keywords('csharp')
+        START_ADVERSARY_ALPHABET = 2
+        END_ADVERSARY_ALPHABET = 28
+        TARGETED_ATTACK = False
+
         # TODO: noamcode: test loop - make iterator
         batch_iterator = self.task.make_minibatch_iterator(
             data, data_fold, self.__placeholders, self.params['max_nodes_in_batch'])
@@ -309,17 +318,7 @@ class Sparse_Graph_Model(ABC):
 
             # todo: noamcode: adversarial process
             correct = fetch_results["task_metrics"]["num_correct_predictions"] == 1
-            if correct:
-                correct_predictions += 1
-            else:
-                continue
 
-            # adversarial steps
-            START_ADVERSARY_ALPHABET = 2
-            END_ADVERSARY_ALPHABET = 28
-            TARGET_CANDIDATE_ID_TO_ADVERSE = 0 # 0 is the correct one
-            TARGETED_ATTACK = False
-            SELECTED_CANDIDATE_ID_TARGETED_ATTACK = 1 # 0 is the correct one
 
             # fetch relevant data from batch
             unique_labels_as_characters = \
@@ -327,14 +326,27 @@ class Sparse_Graph_Model(ABC):
             node_labels_to_unique_labels = \
                 batch_data.feed_dict[self.__placeholders['node_labels_to_unique_labels']]
             candidate_node_ids = batch_data.feed_dict[self.__placeholders['candidate_node_ids']]
+            candidate_node_ids_mask = batch_data.feed_dict[self.__placeholders['candidate_node_ids_mask']]
+            node_labels = batch_data.debug_data["node_labels"][0]
 
-            node_to_adverse_id = candidate_node_ids[0][TARGET_CANDIDATE_ID_TO_ADVERSE]
-            unique_label_to_adverse_id = node_labels_to_unique_labels[node_to_adverse_id]
-            unique_label_to_adverse = unique_labels_as_characters[unique_label_to_adverse_id]
-            unique_label_to_adverse_length = np.argmax(unique_label_to_adverse==0)
 
-            old_label = "".join([self.task.index_to_alphabet(i) for i in unique_label_to_adverse])
+            # preprocess for adversarial
+            masked_candidate_node_ids = candidate_node_ids[0][candidate_node_ids_mask[0]]
+            candidate_node_varnames = [node_labels[str(i)] for i in masked_candidate_node_ids]
+            variable_names_nodes = [int(id) for id, name in node_labels.items()
+                                    if name not in unsplittable_keywords
+                                    and name not in candidate_node_varnames
+                                    and len(name) > 0 and name[0].islower()]
+            variable_names_unique_labels_ids = np.unique(node_labels_to_unique_labels[variable_names_nodes])
 
+            if correct and variable_names_unique_labels_ids.size > 0:
+                correct_predictions += 1
+            else:
+                continue
+
+            # adversarial steps
+            TARGET_CANDIDATE_ID_TO_ADVERSE = 0 # 0 is the correct one
+            SELECTED_CANDIDATE_ID_TARGETED_ATTACK = 1 # 0 is the correct one
 
             if TARGETED_ATTACK:
                 # replace between true label and adversarial label
@@ -347,39 +359,49 @@ class Sparse_Graph_Model(ABC):
             grads = grads[0] if not TARGETED_ATTACK else -grads[0]
 
 
+            # node_to_adverse_id = candidate_node_ids[0][TARGET_CANDIDATE_ID_TO_ADVERSE]
+            # unique_label_to_adverse_id = node_labels_to_unique_labels[node_to_adverse_id]
 
-            unique_label_to_adverse_grads = grads[unique_label_to_adverse_id, :, START_ADVERSARY_ALPHABET:END_ADVERSARY_ALPHABET]
-            # OPTION: replace with constant value
-            # unique_label_to_adverse[0] = 5
+            for node_label_id in variable_names_unique_labels_ids:
 
-            # OPTION: replace constant amount of chars with argmax
-            # target_char = np.argmax(unique_label_to_adverse_grads[0]) + START_ADVERSARY_ALPHABET
-            # target_char1 = np.argmax(unique_label_to_adverse_grads[1]) + START_ADVERSARY_ALPHABET
-            # unique_label_to_adverse[0] = target_char
-            # unique_label_to_adverse[1] = target_char1
+                # unique_label_to_adverse_id = variable_names_unique_labels_ids[0]
+                unique_label_to_adverse_id = node_label_id
+                unique_label_to_adverse = unique_labels_as_characters[unique_label_to_adverse_id]
 
-            # OPTION: replace argmax id with argmax char
-            target_index = np.argmax(np.max(unique_label_to_adverse_grads, axis=1))
-            target_char = np.argmax(unique_label_to_adverse_grads[target_index]) + START_ADVERSARY_ALPHABET
-            unique_label_to_adverse[target_index] = target_char
+                # todo: backup
+                old_label_ints = unique_label_to_adverse.copy()
 
-            for i in range(unique_label_to_adverse_length, target_index):
-                unique_label_to_adverse[i] = np.argmax(unique_label_to_adverse_grads[i]) + START_ADVERSARY_ALPHABET
+                unique_label_to_adverse_grads = grads[unique_label_to_adverse_id, :, START_ADVERSARY_ALPHABET:END_ADVERSARY_ALPHABET]
 
-            # OPTION: replace all chars with argmax char
-            # for i in range(unique_label_to_adverse_length):
-            #     unique_label_to_adverse[i] = np.argmax(unique_label_to_adverse_grads[i]) + START_ADVERSARY_ALPHABET
+                old_label = adversarial.construct_name_from_ints(old_label_ints, self.task.index_to_alphabet)
 
-            new_label = "".join([self.task.index_to_alphabet(i) for i in unique_label_to_adverse])
+                # adverse label
+                # OPTION: replace with random char
+                # unique_label_to_adverse = adversarial.adversary_by_prefix_random(unique_label_to_adverse, -1)
+                # OPTION: replace constant amount of chars with argmax
+                # unique_label_to_adverse = adversarial.adversary_by_prefix_rename(unique_label_to_adverse,
+                #                                                                  unique_label_to_adverse_grads, -1)
+                # OPTION: replace argmax id with argmax char
+                unique_label_to_adverse = adversarial.adversary_by_argmax_id(unique_label_to_adverse,
+                                                                             unique_label_to_adverse_grads)
 
-            fetch_results = self.sess.run(fetch_dict, feed_dict=batch_data.feed_dict)
 
-            # print("{} -> {}".format(old_label, new_label))
-            if (not TARGETED_ATTACK and fetch_results["task_metrics"]["num_correct_predictions"] == 0)\
-                    or (TARGETED_ATTACK and fetch_results["task_metrics"]["num_correct_predictions"] == 1):
-                adversarial_predictions += 1
+                new_label = adversarial.construct_name_from_ints(unique_label_to_adverse, self.task.index_to_alphabet)
+
+                fetch_results = self.sess.run(fetch_dict, feed_dict=batch_data.feed_dict)
+
+                # todo: restore
+                for i in range(unique_label_to_adverse.size):
+                    unique_label_to_adverse[i] = old_label_ints[i]
                 # print("{} -> {}".format(old_label, new_label))
-                # print("after:", fetch_results["task_metrics"]["num_correct_predictions"])
+                if (not TARGETED_ATTACK and fetch_results["task_metrics"]["num_correct_predictions"] == 0)\
+                        or (TARGETED_ATTACK and fetch_results["task_metrics"]["num_correct_predictions"] == 1):
+                    adversarial_predictions += 1
+                    print("filename:", batch_data.debug_data["filename"][0])
+                    print("slot_token_idx:", batch_data.debug_data["slot_token_idx"][0])
+                    print("{} -> {}".format(old_label, new_label))
+                    # print("after:", fetch_results["task_metrics"]["num_correct_predictions"])
+                    break
 
 
 
