@@ -398,12 +398,14 @@ class Sparse_Graph_Model(ABC):
                 if (not TARGETED_ATTACK and fetch_results["task_metrics"]["num_correct_predictions"] == 0)\
                         or (TARGETED_ATTACK and fetch_results["task_metrics"]["num_correct_predictions"] == 1):
                     adversarial_predictions += 1
-                    print("filename: {}".format(batch_data.debug_data["filename"][0]))
-                    print("slot_token_idx: {}".format(batch_data.debug_data["slot_token_idx"][0]))
-                    print("{} -> {}".format(old_label, new_label))
+                    # print("filename: {}".format(batch_data.debug_data["filename"][0]))
+                    # print("slot_token_idx: {}".format(batch_data.debug_data["slot_token_idx"][0]))
+                    # print("candidates: {}".format(candidate_node_varnames))
+                    # print("mutation: {} -> {}".format(old_label, new_label))
                     logfile.write("filename: {}\n".format(batch_data.debug_data["filename"][0]))
                     logfile.write("slot_token_idx: {}\n".format(batch_data.debug_data["slot_token_idx"][0]))
-                    logfile.write("{} -> {}\n".format(old_label, new_label))
+                    logfile.write("candidates: {}\n".format(candidate_node_varnames))
+                    logfile.write("mutation: {} -> {}\n".format(old_label, new_label))
                     # print("after:", fetch_results["task_metrics"]["num_correct_predictions"])
                     break
 
