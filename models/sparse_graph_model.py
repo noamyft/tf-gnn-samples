@@ -393,8 +393,7 @@ class Sparse_Graph_Model(ABC):
                 fetch_results = self.sess.run(fetch_dict, feed_dict=batch_data.feed_dict)
 
                 # todo: restore
-                for i in range(unique_label_to_adverse.size):
-                    unique_label_to_adverse[i] = old_label_ints[i]
+                np.copyto(unique_label_to_adverse, old_label_ints)
                 # print("{} -> {}".format(old_label, new_label))
                 if (not TARGETED_ATTACK and fetch_results["task_metrics"]["num_correct_predictions"] == 0)\
                         or (TARGETED_ATTACK and fetch_results["task_metrics"]["num_correct_predictions"] == 1):
