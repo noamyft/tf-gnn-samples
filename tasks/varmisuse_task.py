@@ -197,7 +197,8 @@ def _load_data(paths: List[RichPath],
 
     # Set up workers:
     workers = []
-    for _ in range(cpu_count()):
+    print("cpu_count:", cpu_count())
+    for _ in range(cpu_count() - 4):
         workers.append(Process(target=_data_loading_worker,
                                args=(path_queue,
                                      result_queue,
