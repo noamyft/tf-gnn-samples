@@ -310,10 +310,10 @@ class Sparse_Graph_Model(ABC):
             task_metric_results.append(fetch_results['task_metrics'])
 
 
-
             if not quiet:
-                print("Running %s, batch %i (has %i graphs). Loss so far: %.4f"
-                      % (epoch_name, step, batch_data.num_graphs, epoch_loss / processed_graphs),
+                print("Running %s, batch %i (has %i graphs). Loss so far: %.4f. adversarial so far: %i/%i (%.4f)"
+                      % (epoch_name, step, batch_data.num_graphs, epoch_loss / processed_graphs, 
+                      adversarial_predictions, correct_predictions, adversarial_predictions/correct_predictions if correct_predictions>0 else 0.0),
                       end='\r')
             if summary_writer:
                 summary_writer.add_summary(fetch_results['tf_summaries'], fetch_results['total_num_graphs'])
