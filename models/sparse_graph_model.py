@@ -274,7 +274,8 @@ class Sparse_Graph_Model(ABC):
         unsplittable_keywords = get_language_keywords('csharp')
         START_ADVERSARY_ALPHABET = 2
         END_ADVERSARY_ALPHABET = 28
-        TARGETED_ATTACK = False
+        TARGETED_ATTACK = True
+        SELECTED_CANDIDATE_ID_TARGETED_ATTACK = 1  # 0 is the correct one
         logfile = open("example_log.txt", "w")
 
         # TODO: noamcode: test loop - make iterator
@@ -347,7 +348,7 @@ class Sparse_Graph_Model(ABC):
 
             # adversarial steps
             TARGET_CANDIDATE_ID_TO_ADVERSE = 0 # 0 is the correct one
-            SELECTED_CANDIDATE_ID_TARGETED_ATTACK = 1 # 0 is the correct one
+
 
             if TARGETED_ATTACK:
                 # replace between true label and adversarial label
