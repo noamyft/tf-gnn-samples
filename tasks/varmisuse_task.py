@@ -166,10 +166,11 @@ def _data_loading_worker(path_queue: Queue,
             result_queue.put(None)  # Signal to the controller that we are done
             break
 
-        gc.collect()
+        
         print("size:", result_queue.qsize())
         # Read the file and push examples out as soon as we get them:
         for raw_sample in next_path.read_by_file_suffix():
+            gc.collect()
             result_queue.put(_load_single_sample(raw_sample,
                                                  unsplittable_node_names,
                                                  graph_node_label_max_num_chars,
@@ -192,7 +193,7 @@ def _load_data(paths: List[RichPath],
                 for raw_sample in path.read_by_file_suffix()]
 
     path_queue = Queue(maxsize=len(paths) + 1)
-    result_queue = Queue(maxsize=1000)
+    result_queue = Queue(maxsize=5)
 
     # Set up list of work to do:
     for path in paths:
@@ -217,6 +218,8 @@ def _load_data(paths: List[RichPath],
     num_workers_terminated = 0
     while num_workers_terminated < len(workers):
         parsed_sample = result_queue.get()
+        print("get:", result_queue.qsize())
+        gc.collect()
         if parsed_sample is None:
             num_workers_terminated += 1  # Worker signaled that it's done
         else:
