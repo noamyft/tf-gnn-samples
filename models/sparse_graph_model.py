@@ -290,10 +290,6 @@ class Sparse_Graph_Model(ABC):
         correct_predictions = 0
         adversarial_predictions = 0
 
-        i1c1 = 0
-        i2c2 = 0
-        i2c1 = 0
-        i1c2 = 0
         for step, batch_data in enumerate(batch_iterator):
             if data_fold == DataFold.TRAIN:
                 batch_data.feed_dict[self.__placeholders['graph_layer_input_dropout_keep_prob']] = \
@@ -405,55 +401,41 @@ class Sparse_Graph_Model(ABC):
                 # print("{} -> {}".format(old_label, new_label))
                 if (not TARGETED_ATTACK and fetch_results["task_metrics"]["num_correct_predictions"] == 0)\
                         or (TARGETED_ATTACK and fetch_results["task_metrics"]["num_correct_predictions"] == 1):
-                    i1c1 += 1
+                    adversarial_predictions += 1
                     logfile.write("filename: {}\n".format(batch_data.debug_data["filename"][0]))
                     logfile.write("slot_token_idx: {}\n".format(batch_data.debug_data["slot_token_idx"][0]))
                     logfile.write("candidates: {}\n".format(candidate_node_varnames))
                     logfile.write("mutation: {} -> {}\n".format(old_label, new_label))
                     # print("after:", fetch_results["task_metrics"]["num_correct_predictions"])
-                    # break
-
-                # i1c2 - delete later
+                    break
+                    
                 unique_label_to_adverse = adversarial.adversary_all_or_until_top_and_index(unique_label_to_adverse,
-                                                                                           unique_label_to_adverse_grads,
+                                                                             unique_label_to_adverse_grads,
                                                                                            index_place=1, char_place=2)
 
+
+                new_label = adversarial.construct_name_from_ints(unique_label_to_adverse, self.task.index_to_alphabet)
                 fetch_results = self.sess.run(fetch_dict, feed_dict=batch_data.feed_dict)
+
                 # todo: restore
                 np.copyto(unique_label_to_adverse, old_label_ints)
-                if (not TARGETED_ATTACK and fetch_results["task_metrics"]["num_correct_predictions"] == 0) \
+                # print("{} -> {}".format(old_label, new_label))
+                if (not TARGETED_ATTACK and fetch_results["task_metrics"]["num_correct_predictions"] == 0)\
                         or (TARGETED_ATTACK and fetch_results["task_metrics"]["num_correct_predictions"] == 1):
-                    i1c2 += 1
-
-                unique_label_to_adverse = adversarial.adversary_all_or_until_top_and_index(unique_label_to_adverse,
-                                                                                           unique_label_to_adverse_grads,
-                                                                                           index_place=2, char_place=1)
-                # i2c1
-                fetch_results = self.sess.run(fetch_dict, feed_dict=batch_data.feed_dict)
-                # todo: restore
-                np.copyto(unique_label_to_adverse, old_label_ints)
-                if (not TARGETED_ATTACK and fetch_results["task_metrics"]["num_correct_predictions"] == 0) \
-                        or (TARGETED_ATTACK and fetch_results["task_metrics"]["num_correct_predictions"] == 1):
-                    i2c1 += 1
-
-                # i2c2
-                unique_label_to_adverse = adversarial.adversary_all_or_until_top_and_index(unique_label_to_adverse,
-                                                                                           unique_label_to_adverse_grads,
-                                                                                           index_place=2, char_place=2)
-
-                fetch_results = self.sess.run(fetch_dict, feed_dict=batch_data.feed_dict)
-                # todo: restore
-                np.copyto(unique_label_to_adverse, old_label_ints)
-                if (not TARGETED_ATTACK and fetch_results["task_metrics"]["num_correct_predictions"] == 0) \
-                        or (TARGETED_ATTACK and fetch_results["task_metrics"]["num_correct_predictions"] == 1):
-                    i2c2 += 1
+                    adversarial_predictions += 1
+                    logfile.write("filename: {}\n".format(batch_data.debug_data["filename"][0]))
+                    logfile.write("slot_token_idx: {}\n".format(batch_data.debug_data["slot_token_idx"][0]))
+                    logfile.write("candidates: {}\n".format(candidate_node_varnames))
+                    logfile.write("mutation: {} -> {}\n".format(old_label, new_label))
+                    # print("after:", fetch_results["task_metrics"]["num_correct_predictions"])
+                    break
 
 
 
 
         assert processed_graphs > 0, "Can't run epoch over empty dataset."
         logfile.close()
-        print("i1c1: {} i1c2: {} i2c1: {} i2c2: {} ".format(i1c1, i1c2, i2c1, i2c2))
+
         epoch_time = time.time() - start_time
         per_graph_loss = epoch_loss / processed_graphs
         graphs_per_sec = processed_graphs / epoch_time
