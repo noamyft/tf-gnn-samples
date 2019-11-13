@@ -71,3 +71,29 @@ def adversary_until_argmax_id(unique_label_to_adverse_as_ints, unique_label_to_a
         unique_label_to_adverse_as_ints[i] = np.argmax(unique_label_to_adverse_grads[i]) + START_ADVERSARY_ALPHABET
 
     return unique_label_to_adverse_as_ints
+
+def adversary_all_or_until_argmax_id(unique_label_to_adverse_as_ints, unique_label_to_adverse_grads):
+    unique_label_to_adverse_length = get_label_length(unique_label_to_adverse_as_ints)
+
+    target_index = np.argmax(np.max(unique_label_to_adverse_grads, axis=1))
+    target_char = np.argmax(unique_label_to_adverse_grads[target_index]) + START_ADVERSARY_ALPHABET
+    unique_label_to_adverse_as_ints[target_index] = target_char
+
+    for i in range(max(target_index, unique_label_to_adverse_length)):
+        unique_label_to_adverse_as_ints[i] = np.argmax(unique_label_to_adverse_grads[i]) + START_ADVERSARY_ALPHABET
+
+    return unique_label_to_adverse_as_ints
+
+def adversary_all_or_until_top_and_index(unique_label_to_adverse_as_ints, unique_label_to_adverse_grads,
+                                      index_place, char_place):
+    unique_label_to_adverse_length = get_label_length(unique_label_to_adverse_as_ints)
+
+
+    target_index = np.argsort(np.sort(unique_label_to_adverse_grads, axis=-1)[:, -char_place])[-index_place]
+    target_chars = np.argsort(unique_label_to_adverse_grads, axis=-1)[:, -char_place] + START_ADVERSARY_ALPHABET
+
+    copy_until = max(target_index+1, unique_label_to_adverse_length)
+
+    np.copyto(unique_label_to_adverse_as_ints[:copy_until], target_chars.astype('uint8')[:copy_until])
+
+    return unique_label_to_adverse_as_ints
