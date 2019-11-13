@@ -218,7 +218,6 @@ def _load_data(paths: List[RichPath],
     num_workers_terminated = 0
     while num_workers_terminated < len(workers):
         parsed_sample = result_queue.get()
-        print("get:", result_queue.qsize())
         gc.collect()
         if parsed_sample is None:
             num_workers_terminated += 1  # Worker signaled that it's done
