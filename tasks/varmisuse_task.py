@@ -11,6 +11,8 @@ from dpu_utils.codeutils import split_identifier_into_parts, get_language_keywor
 from .sparse_graph_task import Sparse_Graph_Task, DataFold, MinibatchData, MinibatchAdversarialData
 from utils import BIG_NUMBER
 
+import gc
+
 
 ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789,;.!?:'\"/\\|_@#$%^&*~`+-=<>()[]{}"
 ALPHABET_DICT = {char: idx + 2 for (idx, char) in enumerate(ALPHABET)}  # "0" is PAD, "1" is UNK
@@ -164,6 +166,8 @@ def _data_loading_worker(path_queue: Queue,
             result_queue.put(None)  # Signal to the controller that we are done
             break
 
+        gc.collect()
+        print("size:", result_queue.qsize())
         # Read the file and push examples out as soon as we get them:
         for raw_sample in next_path.read_by_file_suffix():
             result_queue.put(_load_single_sample(raw_sample,
@@ -188,7 +192,7 @@ def _load_data(paths: List[RichPath],
                 for raw_sample in path.read_by_file_suffix()]
 
     path_queue = Queue(maxsize=len(paths) + 1)
-    result_queue = Queue()
+    result_queue = Queue(maxsize=1000)
 
     # Set up list of work to do:
     for path in paths:
@@ -198,7 +202,7 @@ def _load_data(paths: List[RichPath],
     # Set up workers:
     workers = []
     print("cpu_count:", cpu_count())
-    for _ in range(cpu_count() - 4):
+    for _ in range(1):
         workers.append(Process(target=_data_loading_worker,
                                args=(path_queue,
                                      result_queue,
