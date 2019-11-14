@@ -97,3 +97,11 @@ def adversary_all_or_until_top_and_index(unique_label_to_adverse_as_ints, unique
     np.copyto(unique_label_to_adverse_as_ints[:copy_until], target_chars.astype('uint8')[:copy_until])
 
     return unique_label_to_adverse_as_ints
+
+def adversary_all19_by_argmax(unique_label_to_adverse_as_ints, unique_label_to_adverse_grads):
+
+    target_chars = np.argmax(unique_label_to_adverse_grads, axis=-1) + START_ADVERSARY_ALPHABET
+
+    np.copyto(unique_label_to_adverse_as_ints, target_chars.astype('uint8'))
+
+    return unique_label_to_adverse_as_ints

@@ -385,12 +385,15 @@ class Sparse_Graph_Model(ABC):
                 # unique_label_to_adverse = adversarial.adversary_by_prefix_rename(unique_label_to_adverse,
                 #                                                                  unique_label_to_adverse_grads, -1)
                 # OPTION: replace argmax id with argmax char
-                # unique_label_to_adverse = adversarial.adversary_until_argmax_id(unique_label_to_adverse,
+                # unique_label_to_adverse = adversarial.adversary_by_argmax_id(unique_label_to_adverse,
                 #                                                              unique_label_to_adverse_grads)
+                # OPTION: replace all19 with argmax char
+                unique_label_to_adverse = adversarial.adversary_all19_by_argmax(unique_label_to_adverse,
+                                                                             unique_label_to_adverse_grads)
                 # OPTION: replace adversary_all_or_until_top_and_index i1c1
-                unique_label_to_adverse = adversarial.adversary_all_or_until_top_and_index(unique_label_to_adverse,
-                                                                             unique_label_to_adverse_grads,
-                                                                                           index_place=1, char_place=1)
+                # unique_label_to_adverse = adversarial.adversary_all_or_until_top_and_index(unique_label_to_adverse,
+                                                                             # unique_label_to_adverse_grads,
+                                                                                           # index_place=1, char_place=1)
 
 
                 new_label = adversarial.construct_name_from_ints(unique_label_to_adverse, self.task.index_to_alphabet)
@@ -406,31 +409,7 @@ class Sparse_Graph_Model(ABC):
                     logfile.write("slot_token_idx: {}\n".format(batch_data.debug_data["slot_token_idx"][0]))
                     logfile.write("candidates: {}\n".format(candidate_node_varnames))
                     logfile.write("mutation: {} -> {}\n".format(old_label, new_label))
-                    # print("after:", fetch_results["task_metrics"]["num_correct_predictions"])
                     break
-                    
-                unique_label_to_adverse = adversarial.adversary_all_or_until_top_and_index(unique_label_to_adverse,
-                                                                             unique_label_to_adverse_grads,
-                                                                                           index_place=1, char_place=2)
-
-
-                new_label = adversarial.construct_name_from_ints(unique_label_to_adverse, self.task.index_to_alphabet)
-                fetch_results = self.sess.run(fetch_dict, feed_dict=batch_data.feed_dict)
-
-                # todo: restore
-                np.copyto(unique_label_to_adverse, old_label_ints)
-                # print("{} -> {}".format(old_label, new_label))
-                if (not TARGETED_ATTACK and fetch_results["task_metrics"]["num_correct_predictions"] == 0)\
-                        or (TARGETED_ATTACK and fetch_results["task_metrics"]["num_correct_predictions"] == 1):
-                    adversarial_predictions += 1
-                    logfile.write("filename: {}\n".format(batch_data.debug_data["filename"][0]))
-                    logfile.write("slot_token_idx: {}\n".format(batch_data.debug_data["slot_token_idx"][0]))
-                    logfile.write("candidates: {}\n".format(candidate_node_varnames))
-                    logfile.write("mutation: {} -> {}\n".format(old_label, new_label))
-                    # print("after:", fetch_results["task_metrics"]["num_correct_predictions"])
-                    break
-
-
 
 
         assert processed_graphs > 0, "Can't run epoch over empty dataset."
