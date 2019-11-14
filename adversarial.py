@@ -105,3 +105,9 @@ def adversary_all19_by_argmax(unique_label_to_adverse_as_ints, unique_label_to_a
     np.copyto(unique_label_to_adverse_as_ints, target_chars.astype('uint8'))
 
     return unique_label_to_adverse_as_ints
+
+def adversary_all19_by_argmax_batch(unique_label_to_adverse_grads):
+
+    target_chars = np.argmax(unique_label_to_adverse_grads, axis=-1) + START_ADVERSARY_ALPHABET
+
+    return target_chars.astype('uint8')
