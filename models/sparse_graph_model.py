@@ -2,7 +2,6 @@ import os
 import pickle
 import random
 import time
-from datetime import datetime
 from abc import ABC, abstractmethod
 
 from dpu_utils.codeutils import get_language_keywords
@@ -277,28 +276,7 @@ class Sparse_Graph_Model(ABC):
         END_ADVERSARY_ALPHABET = 28
         TARGETED_ATTACK = True
         SELECTED_CANDIDATE_ID_TARGETED_ATTACK = 1  # 0 is the correct one
-        logfile = open("example_log_{}.txt".format(datetime.now().strftime("%d-%m-%Y_%H-%M-%S")), "w")
-
-        def adverse_var(unique_label_to_adverse, unique_label_to_adverse_grads):
-            # adverse label
-            # OPTION: replace with random char
-            # unique_label_to_adverse = adversarial.adversary_by_prefix_random(unique_label_to_adverse, -1)
-            # OPTION: replace constant amount of chars with argmax
-            # unique_label_to_adverse = adversarial.adversary_by_prefix_rename(unique_label_to_adverse,
-            #                                                                  unique_label_to_adverse_grads, -1)
-            # OPTION: replace argmax id with argmax char
-            # unique_label_to_adverse = adversarial.adversary_all_or_until_argmax_id(unique_label_to_adverse,
-            # unique_label_to_adverse_grads)
-            # OPTION: replace all19 with argmax char
-            # unique_label_to_adverse = adversarial.adversary_all19_by_argmax(unique_label_to_adverse,
-            # unique_label_to_adverse_grads)
-            # OPTION: replace adversary_all_or_until_top_and_index i1c1
-            # unique_label_to_adverse = adversarial.adversary_all_or_until_top_and_index(unique_label_to_adverse,
-            # unique_label_to_adverse_grads,
-            # index_place=1, char_place=1)
-            return adversarial.adversary_all19_by_argmax(unique_label_to_adverse,
-                                                         unique_label_to_adverse_grads)
-
+        logfile = open("example_log.txt", "w")
 
         # TODO: noamcode: test loop - make iterator
         batch_iterator = self.task.make_minibatch_iterator(
@@ -337,12 +315,13 @@ class Sparse_Graph_Model(ABC):
                 print("Running %s, batch %i (has %i graphs). Loss so far: %.4f. adversarial so far: %i/%i (%.4f)"
                       % (epoch_name, step, batch_data.num_graphs, epoch_loss / processed_graphs, 
                       adversarial_predictions, correct_predictions, adversarial_predictions/correct_predictions if correct_predictions>0 else 0.0),
-                      end='\r')
+                      end='\n')
             if summary_writer:
                 summary_writer.add_summary(fetch_results['tf_summaries'], fetch_results['total_num_graphs'])
 
             # todo: noamcode: adversarial process
             correct = fetch_results["task_metrics"]["num_correct_predictions"] == 1
+
 
             # fetch relevant data from batch
             unique_labels_as_characters = \
@@ -382,11 +361,32 @@ class Sparse_Graph_Model(ABC):
             # node_to_adverse_id = candidate_node_ids[0][TARGET_CANDIDATE_ID_TO_ADVERSE]
             # unique_label_to_adverse_id = node_labels_to_unique_labels[node_to_adverse_id]
             
-            #### simple attack - compute gradients and change one only
+            def adverse_var(unique_label_to_adverse, unique_label_to_adverse_grads):
+                # adverse label
+                # OPTION: replace with random char
+                # unique_label_to_adverse = adversarial.adversary_by_prefix_random(unique_label_to_adverse, -1)
+                # OPTION: replace constant amount of chars with argmax
+                # unique_label_to_adverse = adversarial.adversary_by_prefix_rename(unique_label_to_adverse,
+                #                                                                  unique_label_to_adverse_grads, -1)
+                # OPTION: replace argmax id with argmax char
+                # unique_label_to_adverse = adversarial.adversary_all_or_until_argmax_id(unique_label_to_adverse,
+                # unique_label_to_adverse_grads)
+                # OPTION: replace all19 with argmax char
+                # unique_label_to_adverse = adversarial.adversary_all19_by_argmax(unique_label_to_adverse,
+                # unique_label_to_adverse_grads)
+                # OPTION: replace adversary_all_or_until_top_and_index i1c1
+                # unique_label_to_adverse = adversarial.adversary_all_or_until_top_and_index(unique_label_to_adverse,
+                # unique_label_to_adverse_grads,
+                # index_place=1, char_place=1)
+                return adversarial.adversary_by_prefix_random(unique_label_to_adverse,
+                                                                             unique_label_to_adverse_grads)
+                                                                   
+            
+            # simple attack - compute gradients and change one only
             simple_attack_works = False
             # grads computation
-            grads = self.sess.run(self.task.unique_labels_input_grads, feed_dict=batch_data.feed_dict)
-            grads = grads[0] if not TARGETED_ATTACK else -grads[0]
+            # grads = self.sess.run(self.task.unique_labels_input_grads, feed_dict=batch_data.feed_dict)
+            # grads = grads[0] if not TARGETED_ATTACK else -grads[0]
             for node_label_id in variable_names_unique_labels_ids:
 
                 # unique_label_to_adverse_id = variable_names_unique_labels_ids[0]
@@ -394,85 +394,114 @@ class Sparse_Graph_Model(ABC):
                 unique_label_to_adverse = unique_labels_as_characters[unique_label_to_adverse_id]
 
                 # todo: backup
-                old_label_ints = unique_label_to_adverse.copy()
-                old_label = adversarial.construct_name_from_ints(old_label_ints, self.task.index_to_alphabet)
+                # old_label_ints = unique_label_to_adverse.copy()
+                # old_label = adversarial.construct_name_from_ints(old_label_ints, self.task.index_to_alphabet)
                 
-                unique_label_to_adverse_grads = grads[unique_label_to_adverse_id, :, START_ADVERSARY_ALPHABET:END_ADVERSARY_ALPHABET]
+                unique_label_to_adverse_grads = 19 #grads[unique_label_to_adverse_id, :, START_ADVERSARY_ALPHABET:END_ADVERSARY_ALPHABET]
+                for _ in range(3):
+                    unique_label_to_adverse = adverse_var(unique_label_to_adverse, unique_label_to_adverse_grads)
 
-                unique_label_to_adverse = adverse_var(unique_label_to_adverse, unique_label_to_adverse_grads)
+                    fetch_results = self.sess.run(fetch_dict, feed_dict=batch_data.feed_dict)
 
-                fetch_results = self.sess.run(fetch_dict, feed_dict=batch_data.feed_dict)
+                    if (not TARGETED_ATTACK and fetch_results["task_metrics"]["num_correct_predictions"] == 0)\
+                            or (TARGETED_ATTACK and fetch_results["task_metrics"]["num_correct_predictions"] == 1):
+                        # new_label = adversarial.construct_name_from_ints(unique_label_to_adverse,
+                        #                                                  self.task.index_to_alphabet)
+                        adversarial_predictions += 1
+                        simple_attack_works = True
+                        # logfile.write("filename: {}\n".format(batch_data.debug_data["filename"][0]))
+                        # logfile.write("slot_token_idx: {}\n".format(batch_data.debug_data["slot_token_idx"][0]))
+                        # logfile.write("candidates: {}\n".format(candidate_node_varnames))
+                        # logfile.write("mutation: {} -> {}\n".format(old_label, new_label))
+                        break
 
-                if (not TARGETED_ATTACK and fetch_results["task_metrics"]["num_correct_predictions"] == 0)\
-                        or (TARGETED_ATTACK and fetch_results["task_metrics"]["num_correct_predictions"] == 1):
-                    new_label = adversarial.construct_name_from_ints(unique_label_to_adverse,
-                                                                     self.task.index_to_alphabet)
-                    adversarial_predictions += 1
-                    simple_attack_works = True
-                    logfile.write("filename: {}\n".format(batch_data.debug_data["filename"][0]))
-                    logfile.write("slot_token_idx: {}\n".format(batch_data.debug_data["slot_token_idx"][0]))
-                    logfile.write("candidates: {}\n".format(candidate_node_varnames))
-                    logfile.write("mutation: {} -> {}\n".format(old_label, new_label))
+                if simple_attack_works:
                     break
                     
                 # todo: restore
-                np.copyto(unique_label_to_adverse, old_label_ints)
-
-            if simple_attack_works:
-                continue
+                # np.copyto(unique_label_to_adverse, old_label_ints)
                 
-            #### complex attack - compute gradients and change one by one
-            complex_attack_works = False
-            # make backup unique_labels_as_characters
-            unique_labels_as_characters_backup = unique_labels_as_characters.copy()
+            # if simple_attack_works:
+            #     continue
+                
+            # complex attack - compute gradients and change one by one
+            # var_rename_dict = {}
+            # for node_label_id in variable_names_unique_labels_ids:
+            #
+            #     # unique_label_to_adverse_id = variable_names_unique_labels_ids[0]
+            #     unique_label_to_adverse_id = node_label_id
+            #     unique_label_to_adverse = unique_labels_as_characters[unique_label_to_adverse_id]
+            #
+            #     # todo: backup
+            #     old_label_ints = unique_label_to_adverse.copy()
+            #     old_label = adversarial.construct_name_from_ints(old_label_ints, self.task.index_to_alphabet)
+            #
+            #     # grads computation
+            #     grads = self.sess.run(self.task.unique_labels_input_grads, feed_dict=batch_data.feed_dict)
+            #     grads = grads[0] if not TARGETED_ATTACK else -grads[0]
+            #     unique_label_to_adverse_grads = grads[unique_label_to_adverse_id, :, START_ADVERSARY_ALPHABET:END_ADVERSARY_ALPHABET]
+            #
+            #     unique_label_to_adverse = adverse_var(unique_label_to_adverse, unique_label_to_adverse_grads)
+            #
+            #
+            #     fetch_results = self.sess.run(fetch_dict, feed_dict=batch_data.feed_dict)
+            #     if (not TARGETED_ATTACK and fetch_results["task_metrics"]["num_correct_predictions"] == 0)\
+            #             or (TARGETED_ATTACK and fetch_results["task_metrics"]["num_correct_predictions"] == 1):
+            #         new_label = adversarial.construct_name_from_ints(unique_label_to_adverse, self.task.index_to_alphabet)
+            #         var_rename_dict[old_label] = new_label
+            #         adversarial_predictions += 1
+            #         logfile.write("filename: {}\n".format(batch_data.debug_data["filename"][0]))
+            #         logfile.write("slot_token_idx: {}\n".format(batch_data.debug_data["slot_token_idx"][0]))
+            #         logfile.write("candidates: {}\n".format(candidate_node_varnames))
+            #         logfile.write("mutation: {} \n".format(var_rename_dict))
+            #         break
+            #
+            #
+            #     # 2nd grads computation
+            #     grads = self.sess.run(self.task.unique_labels_input_grads, feed_dict=batch_data.feed_dict)
+            #     grads = grads[0] if not TARGETED_ATTACK else -grads[0]
+            #     unique_label_to_adverse_grads = grads[unique_label_to_adverse_id, :,
+            #                                     START_ADVERSARY_ALPHABET:END_ADVERSARY_ALPHABET]
+            #
+            #     unique_label_to_adverse = adverse_var(unique_label_to_adverse, unique_label_to_adverse_grads)
+            #
+            #     fetch_results = self.sess.run(fetch_dict, feed_dict=batch_data.feed_dict)
+            #
+            #     if (not TARGETED_ATTACK and fetch_results["task_metrics"]["num_correct_predictions"] == 0)\
+            #             or (TARGETED_ATTACK and fetch_results["task_metrics"]["num_correct_predictions"] == 1):
+            #         new_label = adversarial.construct_name_from_ints(unique_label_to_adverse, self.task.index_to_alphabet)
+            #         var_rename_dict[old_label] = new_label
+            #         adversarial_predictions += 1
+            #         logfile.write("filename: {}\n".format(batch_data.debug_data["filename"][0]))
+            #         logfile.write("slot_token_idx: {}\n".format(batch_data.debug_data["slot_token_idx"][0]))
+            #         logfile.write("candidates: {}\n".format(candidate_node_varnames))
+            #         logfile.write("mutation: {} \n".format(var_rename_dict))
+            #         break
+            #
+            #     # 3rd grads computation
+            #     grads = self.sess.run(self.task.unique_labels_input_grads, feed_dict=batch_data.feed_dict)
+            #     grads = grads[0] if not TARGETED_ATTACK else -grads[0]
+            #     unique_label_to_adverse_grads = grads[unique_label_to_adverse_id, :,
+            #                                     START_ADVERSARY_ALPHABET:END_ADVERSARY_ALPHABET]
+            #
+            #     unique_label_to_adverse = adverse_var(unique_label_to_adverse, unique_label_to_adverse_grads)
+            #
+            #     fetch_results = self.sess.run(fetch_dict, feed_dict=batch_data.feed_dict)
+            #
+            #     new_label = adversarial.construct_name_from_ints(unique_label_to_adverse, self.task.index_to_alphabet)
+            #     var_rename_dict[old_label] = new_label
+            #     if (not TARGETED_ATTACK and fetch_results["task_metrics"]["num_correct_predictions"] == 0)\
+            #             or (TARGETED_ATTACK and fetch_results["task_metrics"]["num_correct_predictions"] == 1):
+            #
+            #         adversarial_predictions += 1
+            #         logfile.write("filename: {}\n".format(batch_data.debug_data["filename"][0]))
+            #         logfile.write("slot_token_idx: {}\n".format(batch_data.debug_data["slot_token_idx"][0]))
+            #         logfile.write("candidates: {}\n".format(candidate_node_varnames))
+            #         logfile.write("mutation: {} \n".format(var_rename_dict))
+            #         break
+                    
+                
 
-            # compute grads & variables
-            adversarial_vars = []
-            for _ in range(3):
-                grads = self.sess.run(self.task.unique_labels_input_grads, feed_dict=batch_data.feed_dict)
-                grads = grads[0] if not TARGETED_ATTACK else -grads[0]
-                unique_label_to_adverse_grads = grads[:, :, START_ADVERSARY_ALPHABET:END_ADVERSARY_ALPHABET]
-                adversarial_vars.append(adversarial.adversary_all19_by_argmax_batch(unique_label_to_adverse_grads))
-                [np.copyto(unique_labels_as_characters[adverse_index], adversarial_vars[-1][adverse_index])
-                 for adverse_index in variable_names_unique_labels_ids]
-
-            # restore unique_labels_as_characters
-            np.copyto(unique_labels_as_characters, unique_labels_as_characters_backup)
-
-            var_rename_dict = {}
-            for node_label_id in variable_names_unique_labels_ids:
-
-                # unique_label_to_adverse_id = variable_names_unique_labels_ids[0]
-                unique_label_to_adverse_id = node_label_id
-                unique_label_to_adverse = unique_labels_as_characters[unique_label_to_adverse_id]
-
-                # todo: backup
-                old_label_ints = unique_label_to_adverse.copy()
-                old_label = adversarial.construct_name_from_ints(old_label_ints, self.task.index_to_alphabet)
-
-                # try adversarials
-                for adversarial_var in adversarial_vars:
-                    np.copyto(unique_label_to_adverse, adversarial_var[unique_label_to_adverse_id])
-
-                    fetch_results = self.sess.run(fetch_dict, feed_dict=batch_data.feed_dict)
-                    if (not TARGETED_ATTACK and fetch_results["task_metrics"]["num_correct_predictions"] == 0)\
-                            or (TARGETED_ATTACK and fetch_results["task_metrics"]["num_correct_predictions"] == 1):
-                        new_label = adversarial.construct_name_from_ints(unique_label_to_adverse, self.task.index_to_alphabet)
-                        var_rename_dict[old_label] = new_label
-                        adversarial_predictions += 1
-                        logfile.write("filename: {}\n".format(batch_data.debug_data["filename"][0]))
-                        logfile.write("slot_token_idx: {}\n".format(batch_data.debug_data["slot_token_idx"][0]))
-                        logfile.write("candidates: {}\n".format(candidate_node_varnames))
-                        logfile.write("mutation: {} \n".format(var_rename_dict))
-                        complex_attack_works = True
-                        break
-
-                if complex_attack_works:
-                    break
-                else: #if failed - add mutated var to dict and continue to next var
-                    new_label = adversarial.construct_name_from_ints(unique_label_to_adverse,
-                                                                     self.task.index_to_alphabet)
-                    var_rename_dict[old_label] = new_label
 
 
 
