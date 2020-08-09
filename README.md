@@ -61,6 +61,8 @@ python3 code2vec.py trained_models/VarMisuse_GGNN_2019-09-23-17-42-12_23483_best
 ```
 **note:** the adversary may take some time to run (even on GPU).
 
+### Configuration
+
 You can change hyper-parameters by set the following Variables in models/sparse_graph_model.py:
 * _TARGETED_ATTACK_ - set the type of attack (True for targeted, false otherwise).
 * _ADVERSARIAL_DEPTH_ - the BFS search's depth (3 by default).
