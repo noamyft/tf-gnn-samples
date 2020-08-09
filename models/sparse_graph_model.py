@@ -273,6 +273,7 @@ class Sparse_Graph_Model(ABC):
             -> Tuple[float, List[Dict[str, Any]], int, float, float, float]:
         # todo: get reserved words
         unsplittable_keywords = get_language_keywords('csharp')
+        ADVERSARIAL_DEPTH = 3
         START_ADVERSARY_ALPHABET = 2
         END_ADVERSARY_ALPHABET = 28
         TARGETED_ATTACK = True
@@ -428,7 +429,7 @@ class Sparse_Graph_Model(ABC):
 
             # compute grads & variables
             adversarial_vars = []
-            for _ in range(3):
+            for _ in range(ADVERSARIAL_DEPTH):
                 grads = self.sess.run(self.task.unique_labels_input_grads, feed_dict=batch_data.feed_dict)
                 grads = grads[0] if not TARGETED_ATTACK else -grads[0]
                 unique_label_to_adverse_grads = grads[:, :, START_ADVERSARY_ALPHABET:END_ADVERSARY_ALPHABET]
