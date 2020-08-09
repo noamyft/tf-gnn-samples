@@ -51,13 +51,13 @@ tar -xzf ../varmisuse_small.tar.gz
 Alternatively, You can use the entire VarMisuse dataset. Please follow the instruction under "VarMisuse" section in https://github.com/microsoft/tf-gnn-samples
 
 ### Step 2: Downloading a trained models
-we provide pretrained models for GNN & GNN-FiLM. You can download them from [here](https://drive.google.com/file/d/1iphwhtgSTyUR262foYYtwxED0fzzMSNh/view?usp=sharing)
+we provide pretrained models for GNN & GNN-FiLM. You can download them from [here](https://drive.google.com/file/d/1GqANMlsnRpzYcXCNzkS2VnKfD3Im3yjN/view?usp=sharing)
 Then run the following commands:
 ```
 mdkir trained_models
 cd trained_models
-tar -xzf ../GNN_trained_models.tar.gz
 ```
+and unzip the file in trained_models.
 
 ### Step 3: Run adversary on the trained model
 
