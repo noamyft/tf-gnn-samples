@@ -31,6 +31,13 @@ On Ubuntu:
 
 ## Quickstart
 
+### Step 0: Cloning this repository and switch branch
+```
+git clone https://github.com/noamyft/tf-gnn-samples.git
+cd tf-gnn-samples
+git checkout adversary
+```
+
 ### Step 1: Download dataset 
 We provided a sub-data of the VarMisuse task (the data we used for evalutaion). You can download it from [here](https://drive.google.com/file/d/1SARyWiRl8CWVcHmdiCshAHiEwFNoJQ1D/view?usp=sharing)
 
