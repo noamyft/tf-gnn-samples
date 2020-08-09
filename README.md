@@ -35,7 +35,7 @@ On Ubuntu:
 ```
 git clone https://github.com/noamyft/tf-gnn-samples.git
 cd tf-gnn-samples
-git checkout adversary
+git checkout adversarial
 ```
 
 ### Step 1: Download dataset 
@@ -43,7 +43,7 @@ We provided a sub-data of the VarMisuse task (the data we used for evalutaion). 
 
 Then run the following commands:
 ```
-mdkir data
+mkdir data
 cd data
 tar -xzf ../varmisuse_small.tar.gz
 ```
@@ -54,7 +54,7 @@ Alternatively, You can use the entire VarMisuse dataset. Please follow the instr
 we provide pretrained models for GNN & GNN-FiLM. You can download them from [here](https://drive.google.com/file/d/1GqANMlsnRpzYcXCNzkS2VnKfD3Im3yjN/view?usp=sharing)
 Then run the following commands:
 ```
-mdkir trained_models
+mkdir trained_models
 cd trained_models
 ```
 and unzip the file in trained_models.
