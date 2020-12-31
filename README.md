@@ -1,3 +1,6 @@
+**THIS IS A DEPRECATED REPOSITORY. PLEASE REFER TO [THIS LINK](https://github.com/tech-srl/adversarial-examples).**
+
+
 # Adversarial Examples for Models of Code - GNN
 
 An adversary for graph neural networks (GNNs) with feature-wise linear modulation ([Brockschmidt, 2019](#brockschmidt-2019)).
